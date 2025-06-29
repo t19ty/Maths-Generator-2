@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>AI Maths MCQ Generator</title>
+<style>
+ :root { --brand:#2d67ff; --bg:#fafafa; --text:#222;
+         --green:#3bb54a; --red:#e95353; --radius:8px; }
+ body{margin:0;font-family:system-ui,sans-serif;
+      background:var(--bg);color:var(--text);
+      display:flex;justify-content:center;min-height:100vh}
+ .card{width:min(500px,92%);background:#fff;margin-top:3rem;
+       padding:1.5rem 2rem;border-radius:var(--radius);
+       box-shadow:0 8px 20px #0001}
+ h1{font-size:1.35rem;text-align:center;margin:0 0 1.2rem}
+ label{display:block;margin:.8rem 0 .3rem;font-weight:600}
+ select,button{width:100%;padding:.6rem .8rem;font-size:1rem;
+               border:1px solid #ccc;border-radius:var(--radius)}
+ button#generate{margin-top:1.3rem;background:var(--brand);color:#fff;border:none}
+ button#generate:disabled{opacity:.6;cursor:progress}
+ .optionBtn{margin-top:.8rem;text-align:left;background:#f6f6f6}
+ .optionBtn.correct{background:var(--green);color:#fff}
+ .optionBtn.wrong{background:var(--red);color:#fff}
+ .optionBtn:disabled{opacity:1}
+ footer{margin-top:1.7rem;font-size:.8rem;text-align:center;color:#777}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Maths MCQ Generator</h1>
+
+  <label for="topic">Topic</label>
+  <select id="topic">
+    <option>Simultaneous Equations</option>
+    <option>Quadratics</option>
+    <option>Trigonometry</option>
+    <option>Probability</option>
+    <option>Linear Equations in One Unknown</option>
+  </select>
+
+  <label for="difficulty">Difficulty</label>
+  <select id="difficulty">
+    <option>easy</option>
+    <option>medium</option>
+    <option>challenging</option>
+  </select>
+
+  <button id="generate">Generate Question</button>
+
+  <h2 id="qTitle" style="display:none;margin-top:2rem">Question</h2>
+  <p id="questionText"></p>
+
+  <div id="optionsBox"></div>
+
+  <footer>Powered by DeepSeek API • Demo prototype</footer>
+</div>
+
+<script>
+const genBtn   = document.getElementById("generate");
+const qTitle   = document.getElementById("qTitle");
+const qText    = document.getElementById("questionText");
+const optionsBox = document.getElementById("optionsBox");
+
+genBtn.addEventListener("click", async () => {
+  genBtn.disabled = true;
+  qTitle.style.display = "none";
+  qText.textContent = "";
+  optionsBox.innerHTML = "";
+
+  const topic      = document.getElementById("topic").value;
+  const difficulty = document.getElementById("difficulty").value;
+
+  const res = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({ topic, difficulty })
+  });
+
+  genBtn.disabled = false;
+
+  if (!res.ok) { alert("Generation failed."); return; }
+
+  const { question, options, correctIndex, error } = await res.json();
+  if (error) { qText.textContent = error; return; }
+
+  /* Show question */
+  qTitle.style.display = "block";
+  qText.textContent = question;
+
+  /* Render four option buttons */
+  options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "optionBtn";
+    btn.textContent = opt;
+    btn.onclick = () => {
+      // disable all buttons
+      document.querySelectorAll(".optionBtn").forEach(b => b.disabled = true);
+      // mark colours
+      btn.classList.add(idx === correctIndex ? "correct" : "wrong");
+      if (idx !== correctIndex) {
+        document.querySelectorAll(".optionBtn")[correctIndex]
+          .classList.add("correct");
+      }
+    };
+    optionsBox.appendChild(btn);
+  });
+});
+</script>
+</body>
+</html> 

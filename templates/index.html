@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>AI Maths MCQ Generator</title>
+<title>AI Maths MCQ Exercise</title>
 <style>
  :root { --brand:#2d67ff; --bg:#fafafa; --text:#222;
          --green:#3bb54a; --red:#e95353; --radius:8px; }
@@ -17,95 +17,257 @@
  label{display:block;margin:.8rem 0 .3rem;font-weight:600}
  select,button{width:100%;padding:.6rem .8rem;font-size:1rem;
                border:1px solid #ccc;border-radius:var(--radius)}
- button#generate{margin-top:1.3rem;background:var(--brand);color:#fff;border:none}
- button#generate:disabled{opacity:.6;cursor:progress}
+ button#start,button#next,button#restart{margin-top:1.3rem;background:var(--brand);color:#fff;border:none}
+ button#start:disabled,button#next:disabled,button#restart:disabled{opacity:.6;cursor:progress}
  .optionBtn{margin-top:.8rem;text-align:left;background:#f6f6f6}
  .optionBtn.correct{background:var(--green);color:#fff}
  .optionBtn.wrong{background:var(--red);color:#fff}
  .optionBtn:disabled{opacity:1}
+ .feedback{margin-top:1rem;font-weight:bold}
+ .score{margin-top:2rem;font-size:1.1rem;text-align:center}
  footer{margin-top:1.7rem;font-size:.8rem;text-align:center;color:#777}
 </style>
+<!-- MathJax for LaTeX rendering -->
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
 <div class="card">
-  <h1>Maths MCQ Generator</h1>
+  <h1>Maths MCQ Exercise</h1>
 
-  <label for="topic">Topic</label>
-  <select id="topic">
-    <option>Simultaneous Equations</option>
-    <option>Quadratics</option>
-    <option>Trigonometry</option>
-    <option>Probability</option>
-    <option>Linear Equations in One Unknown</option>
-  </select>
+  <div id="setupBox">
+    <label for="topic">Topic</label>
+    <select id="topic">
+      <option>Simultaneous Equations</option>
+      <option>Quadratics</option>
+      <option>Trigonometry</option>
+      <option>Probability</option>
+      <option>Linear Equations in One Unknown</option>
+      <option>Factorization using identities (perfect square, difference of two squares)</option>
+    </select>
 
-  <label for="difficulty">Difficulty</label>
-  <select id="difficulty">
-    <option>easy</option>
-    <option>medium</option>
-    <option>challenging</option>
-  </select>
+    <label for="difficulty">Difficulty</label>
+    <select id="difficulty">
+      <option>easy</option>
+      <option>medium</option>
+      <option>challenging</option>
+    </select>
 
-  <button id="generate">Generate Question</button>
+    <button id="start">Start Exercise</button>
+  </div>
 
-  <h2 id="qTitle" style="display:none;margin-top:2rem">Question</h2>
-  <p id="questionText"></p>
+  <div id="exerciseBox" style="display:none">
+    <div style="margin-bottom:1rem">
+      <span id="progress"></span>
+    </div>
+    <h2 id="qTitle" style="margin-top:0">Question</h2>
+    <p id="questionText"></p>
+    <div id="optionsBox"></div>
+    <div class="feedback" id="feedback"></div>
+    <button id="next" style="display:none">Next Question</button>
+    <div class="score" id="scoreBox" style="display:none"></div>
+    <button id="reviewBtn" style="display:none">Review</button>
+    <button id="restart" style="display:none">Restart Exercise</button>
+  </div>
 
-  <div id="optionsBox"></div>
+  <div id="reviewSection" style="display:none; margin-top:2rem"></div>
 
   <footer>Powered by DeepSeek API • Demo prototype</footer>
 </div>
 
 <script>
-const genBtn   = document.getElementById("generate");
-const qTitle   = document.getElementById("qTitle");
-const qText    = document.getElementById("questionText");
+const startBtn   = document.getElementById("start");
+const nextBtn    = document.getElementById("next");
+const restartBtn = document.getElementById("restart");
+const setupBox   = document.getElementById("setupBox");
+const exerciseBox= document.getElementById("exerciseBox");
+const qTitle     = document.getElementById("qTitle");
+const qText      = document.getElementById("questionText");
 const optionsBox = document.getElementById("optionsBox");
+const feedback   = document.getElementById("feedback");
+const progress   = document.getElementById("progress");
+const scoreBox   = document.getElementById("scoreBox");
+const reviewBtn  = document.getElementById("reviewBtn");
+const reviewSection = document.getElementById("reviewSection");
 
-genBtn.addEventListener("click", async () => {
-  genBtn.disabled = true;
-  qTitle.style.display = "none";
-  qText.textContent = "";
+let topic, difficulty;
+let current = 0;
+let score = 0;
+let total = 5;
+let previousQuestions = [];
+let lastQuestion = null;
+let reviewData = [];
+let startTime = null;
+let endTime = null;
+let elapsedSeconds = 0;
+
+function resetExercise() {
+  current = 0;
+  score = 0;
+  previousQuestions = [];
+  lastQuestion = null;
+  reviewData = [];
+  scoreBox.style.display = "none";
+  restartBtn.style.display = "none";
+  reviewBtn.style.display = "none";
+  reviewSection.style.display = "none";
+  startTime = null;
+  endTime = null;
+  elapsedSeconds = 0;
+}
+
+startBtn.onclick = async () => {
+  topic = document.getElementById("topic").value;
+  difficulty = document.getElementById("difficulty").value;
+  setupBox.style.display = "none";
+  exerciseBox.style.display = "block";
+  resetExercise();
+  startTime = new Date();
+  await loadQuestion();
+};
+
+nextBtn.onclick = async () => {
+  feedback.textContent = "";
+  nextBtn.style.display = "none";
+  await loadQuestion();
+};
+
+restartBtn.onclick = () => {
+  setupBox.style.display = "block";
+  exerciseBox.style.display = "none";
+};
+
+reviewBtn.onclick = () => {
+  let mins = Math.floor(elapsedSeconds / 60);
+  let secs = elapsedSeconds % 60;
+  let timeStr = mins > 0 ? `${mins} min${mins>1?'s':''} ${secs} sec` : `${secs} sec`;
+  reviewSection.innerHTML = `<h2>Review Your Answers</h2><div style='margin-bottom:1rem'><b>Total time:</b> ${timeStr}</div>`;
+  reviewData.forEach((item, idx) => {
+    let html = `<div style='margin-bottom:1.5rem'><b>Q${idx+1}:</b> ${item.question}<br>`;
+    item.options.forEach((opt, i) => {
+      let style = "padding:4px 8px; border-radius:6px; margin-right:6px;";
+      if (i === item.correctIndex && i === item.selectedIndex) {
+        style += "background: var(--green); color: #fff; font-weight:bold;";
+      } else if (i === item.correctIndex) {
+        style += "background: var(--green); color: #fff;";
+      } else if (i === item.selectedIndex) {
+        style += "background: var(--red); color: #fff;";
+      }
+      html += `<span style='${style}'>${opt}</span>`;
+    });
+    html += `</div>`;
+    reviewSection.innerHTML += html;
+  });
+  reviewSection.style.display = "block";
+  reviewBtn.style.display = "none";
+  if (window.MathJax) MathJax.typesetPromise();
+};
+
+async function loadQuestion() {
+  if (current >= total) {
+    showScore();
+    return;
+  }
+  progress.textContent = `Question ${current+1} of ${total}`;
+  qTitle.style.display = "block";
+  qText.textContent = "Loading...";
   optionsBox.innerHTML = "";
+  feedback.textContent = "";
 
-  const topic      = document.getElementById("topic").value;
-  const difficulty = document.getElementById("difficulty").value;
-
+  // Pass previous questions to backend to avoid repeats
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ topic, difficulty })
+    body: JSON.stringify({ topic, difficulty, previousQuestions })
   });
 
-  genBtn.disabled = false;
-
-  if (!res.ok) { alert("Generation failed."); return; }
-
-  const { question, options, correctIndex, error } = await res.json();
+  if (!res.ok) { qText.textContent = "Generation failed."; return; }
+  let { question, options, correctIndex, error } = await res.json();
   if (error) { qText.textContent = error; return; }
 
-  /* Show question */
-  qTitle.style.display = "block";
-  qText.textContent = question;
+  // Avoid repeats in the same session (frontend check)
+  if (previousQuestions.includes(question)) {
+    // Try again (max 3 attempts)
+    let attempts = 0;
+    let newQuestion = question;
+    let newOptions = options;
+    let newCorrectIndex = correctIndex;
+    while (previousQuestions.includes(newQuestion) && attempts < 3) {
+      const retryRes = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ topic, difficulty, previousQuestions })
+      });
+      if (!retryRes.ok) break;
+      const retryData = await retryRes.json();
+      newQuestion = retryData.question;
+      newOptions = retryData.options;
+      newCorrectIndex = retryData.correctIndex;
+      if (!previousQuestions.includes(newQuestion)) {
+        question = newQuestion;
+        options = newOptions;
+        correctIndex = newCorrectIndex;
+        break;
+      }
+      attempts++;
+    }
+  }
 
-  /* Render four option buttons */
+  previousQuestions.push(question);
+  lastQuestion = { question, options, correctIndex };
+  qText.textContent = question;
+  optionsBox.innerHTML = "";
+  feedback.textContent = "";
+
   options.forEach((opt, idx) => {
     const btn = document.createElement("button");
     btn.className = "optionBtn";
-    btn.textContent = opt;
-    btn.onclick = () => {
-      // disable all buttons
-      document.querySelectorAll(".optionBtn").forEach(b => b.disabled = true);
-      // mark colours
-      btn.classList.add(idx === correctIndex ? "correct" : "wrong");
-      if (idx !== correctIndex) {
-        document.querySelectorAll(".optionBtn")[correctIndex]
-          .classList.add("correct");
-      }
-    };
+    btn.innerHTML = opt; // Use innerHTML for LaTeX
+    btn.onclick = () => handleAnswer(idx, btn);
     optionsBox.appendChild(btn);
   });
-});
+  if (window.MathJax) MathJax.typesetPromise();
+}
+
+function handleAnswer(idx, btn) {
+  // disable all buttons
+  document.querySelectorAll(".optionBtn").forEach(b => b.disabled = true);
+  const correct = idx === lastQuestion.correctIndex;
+  btn.classList.add(correct ? "correct" : "wrong");
+  if (!correct) {
+    document.querySelectorAll(".optionBtn")[lastQuestion.correctIndex]
+      .classList.add("correct");
+    feedback.textContent = "Incorrect!";
+  } else {
+    feedback.textContent = "Correct!";
+    score++;
+  }
+  // Store review data
+  reviewData.push({
+    question: lastQuestion.question,
+    options: lastQuestion.options,
+    correctIndex: lastQuestion.correctIndex,
+    selectedIndex: idx
+  });
+  current++;
+  nextBtn.style.display = "block";
+  if (current >= total) nextBtn.textContent = "Show Score";
+  else nextBtn.textContent = "Next Question";
+}
+
+function showScore() {
+  qTitle.style.display = "none";
+  qText.textContent = "";
+  optionsBox.innerHTML = "";
+  feedback.textContent = "";
+  nextBtn.style.display = "none";
+  scoreBox.style.display = "block";
+  scoreBox.textContent = `Exercise complete! Your score: ${score} / ${total}`;
+  reviewBtn.style.display = "block";
+  restartBtn.style.display = "block";
+  endTime = new Date();
+  elapsedSeconds = Math.round((endTime - startTime) / 1000);
+}
 </script>
 </body>
 </html> 

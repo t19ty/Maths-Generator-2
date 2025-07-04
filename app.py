@@ -3,6 +3,8 @@ from openai import OpenAI
 import json
 import re
 import os
+import random
+import uuid
 
 app = Flask(__name__)
 
@@ -22,8 +24,85 @@ def generate():
         data = request.json
         topic = data.get('topic', 'mathematics')
         difficulty = data.get('difficulty', 'medium')
+        previous_questions = data.get('previousQuestions', [])
         key = f"{topic}|{difficulty}"
         last_question = last_questions.get(key, "")
+
+        # Add prompt variety: random template and random tag
+        templates = [
+            "Generate ONE {difficulty} secondary-school mathematics question on '{topic}'. Provide EXACTLY 4 answer options.",
+            "Write a {difficulty} math question for secondary school about '{topic}' with 4 answer choices.",
+            "Create a single {difficulty} level math MCQ on '{topic}'. Give 4 options.",
+            "Formulate a {difficulty} secondary-school mathematics multiple-choice question on '{topic}' with 4 options."
+        ]
+        rand_tag = str(uuid.uuid4())[:8]
+
+        factorization_templates = [
+            "Write a {difficulty} math question for secondary school about factorization using identities (perfect square, difference of two squares), with 4 answer choices.",
+            "Create a single {difficulty} level math MCQ on factorization (identities: perfect square, difference of two squares). Give 4 options.",
+            "Formulate a {difficulty} secondary-school mathematics multiple-choice question on factorization using identities (perfect square, difference of two squares) with 4 options."
+        ]
+        # Add a special template for challenging level
+        if difficulty.lower() == "challenging":
+            factorization_templates.append(
+                "Generate a CHALLENGING secondary-school mathematics question on factorization using identities (perfect square, difference of two squares). Provide EXACTLY 4 answer options. The question should be similar in style to: Factorize the expression 4x^2 + 4x + 1 - y^2."
+            )
+            factorization_templates.append(
+                "Write a challenging factorization question for secondary school using identities (perfect square, difference of two squares). Provide 4 answer choices. The question should be similar in style to: Factorize the expression: y^2 - x^2 - 2x - 1."
+            )
+
+        # Templates for factorization using cross method
+        cross_method_templates = [
+            "Generate ONE {difficulty} secondary-school mathematics question on factorization using the cross method. Provide EXACTLY 4 answer options.",
+            "Write a {difficulty} math question for secondary school about factorization using the cross method, with 4 answer choices.",
+            "Create a single {difficulty} level math MCQ on factorization using the cross method. Give 4 options.",
+            "Formulate a {difficulty} secondary-school mathematics multiple-choice question on factorization using the cross method with 4 options."
+        ]
+        if difficulty.lower() == "challenging":
+            cross_method_templates.append(
+                "Write a challenging factorization question for secondary school using the cross method. Provide 4 answer choices. The question should be similar in style to: Factorize the expression: 6x^2 + 11x + 3."
+            )
+
+        # Templates for positive integral indices
+        indices_templates = [
+            "Generate ONE {difficulty} secondary-school mathematics question on positive integral indices. Provide EXACTLY 4 answer options.",
+            "Write a {difficulty} math question for secondary school about positive integral indices, with 4 answer choices.",
+            "Create a single {difficulty} level math MCQ on positive integral indices. Give 4 options.",
+            "Formulate a {difficulty} secondary-school mathematics multiple-choice question on positive integral indices with 4 options."
+        ]
+        if difficulty.lower() == "challenging":
+            indices_templates.append(
+                "Write a challenging question for secondary school on positive integral indices. Provide 4 answer choices. The question should be similar in style to: Simplify (x^3 * y^2)^4 / (x^2 * y)^3."
+            )
+
+        # Select template set based on topic
+        if "factorization using cross method" in topic.lower():
+            template = random.choice(cross_method_templates)
+            user_content = template.format(difficulty=difficulty)
+            if previous_questions:
+                user_content += " Do NOT repeat any of these questions: " + "; ".join(f'\"{q}\"' for q in previous_questions)
+            user_content += f" Tag: {rand_tag}."
+        elif "positive integral indices" in topic.lower():
+            template = random.choice(indices_templates)
+            user_content = template.format(difficulty=difficulty)
+            if previous_questions:
+                user_content += " Do NOT repeat any of these questions: " + "; ".join(f'\"{q}\"' for q in previous_questions)
+            user_content += f" Tag: {rand_tag}."
+        elif "factorization" in topic.lower():
+            template = random.choice(factorization_templates)
+            user_content = template.format(difficulty=difficulty)
+            if previous_questions:
+                user_content += " Do NOT repeat any of these questions: " + "; ".join(f'\"{q}\"' for q in previous_questions)
+            user_content += f" Tag: {rand_tag}."
+        else:
+            template = random.choice(templates)
+            user_content = template.format(difficulty=difficulty, topic=topic)
+            if previous_questions:
+                user_content += " Do NOT repeat any of these questions: " + "; ".join(f'\"{q}\"' for q in previous_questions)
+            user_content += f" Tag: {rand_tag}."
+
+        # print("System prompt:", system_prompt)
+        print("User prompt:", user_content)
 
         messages = [
             {
@@ -35,11 +114,7 @@ def generate():
             },
             {
                 "role": "user",
-                "content": (
-                    f"Generate ONE {difficulty} secondary-school mathematics "
-                    f"question on \"{topic}\". Provide EXACTLY 4 answer options."
-                    + (f" Do NOT repeat this question: \"{last_question}\"" if last_question else "")
-                )
+                "content": user_content
             }
         ]
 
@@ -54,19 +129,38 @@ def generate():
         choice = response.choices[0]
         content = choice.message.content
 
+        print("AI raw content:", content)
+
         # Extract JSON from markdown code block if present
-        match = re.search(r'```json\n(.*?)```', content, re.DOTALL)
+        match = re.search(r'```json\s*(\{[\s\S]*?\})\s*```', content)
+        if not match:
+            match = re.search(r'```\s*(\{[\s\S]*?\})\s*```', content)
         if match:
             json_str = match.group(1)
         else:
-            json_str = content
+            # Try to find the first JSON object in the string
+            match = re.search(r'(\{[\s\S]*\})', content)
+            if match:
+                json_str = match.group(1)
+            else:
+                json_str = content.strip()
 
+        # Escape all unescaped backslashes (e.g., in LaTeX) to make valid JSON
+        json_str = re.sub(r'(?<!\\)\\(?![\\"/bfnrtu])', r'\\\\', json_str)
+
+        # No need to escape backslashes or quotes now, just parse
         args = json.loads(json_str)
 
         question = args["question"]
         options = args["options"]
         correct_answer = args["correct_answer"]
-        correctIndex = options.index(correct_answer)
+
+        # Shuffle options and update correctIndex
+        combined = list(zip(options, range(len(options))))
+        random.shuffle(combined)
+        shuffled_options = [opt for opt, _ in combined]
+        correctIndex = shuffled_options.index(correct_answer)
+        options = shuffled_options
 
         # Save the last question for this topic/difficulty
         last_questions[key] = question

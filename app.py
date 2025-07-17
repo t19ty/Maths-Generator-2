@@ -5,6 +5,8 @@ import re
 import os
 import random
 import uuid
+from flask_dance.contrib.google import make_google_blueprint, google
+
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SESSION_SECRET = os.environ.get("SESSION_SECRET")

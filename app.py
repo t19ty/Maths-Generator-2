@@ -1,10 +1,15 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from openai import OpenAI
 import json
 import re
 import os
 import random
 import uuid
+from dotenv import load_dotenv
+load_dotenv()
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+SESSION_SECRET = os.environ.get("SESSION_SECRET")
 
 app = Flask(__name__)
 
@@ -13,6 +18,45 @@ BASE_URL = "https://api.deepseek.com"
 
 # Store the last question for each topic/difficulty
 last_questions = {}
+
+app.secret_key = SESSION_SECRET
+
+google_bp = make_google_blueprint(
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    scope=["profile", "email"],
+    redirect_url="/google_login/callback"
+)
+app.register_blueprint(google_bp, url_prefix="/google_login")
+
+# Email whitelist check function
+def is_email_allowed(email):
+    return (
+        email == "t19ty@cdgfss.edu.hk" or
+        re.match(r"^cdg\d{6}@cdgfss\.edu\.hk$", email)
+    )
+
+# Route protection decorator
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not google.authorized:
+            return redirect(url_for("google.login"))
+        resp = google.get("/oauth2/v2/userinfo")
+        if not resp.ok:
+            return redirect(url_for("google.login"))
+        email = resp.json().get("email", "")
+        if not is_email_allowed(email):
+            return "Unauthorized", 403
+        session["user_email"] = email
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/protected")
+@login_required
+def protected():
+    return f"Logged-in user: {session.get('user_email')}"
 
 @app.route('/')
 def home():

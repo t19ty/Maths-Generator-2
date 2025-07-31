@@ -35,9 +35,6 @@ google_bp = make_google_blueprint(
     client_secret=GOOGLE_CLIENT_SECRET,
     scope=["profile", "email"],
     redirect_url="/google_login/google/authorized",
-    # Add OAuth parameters like Google example
-    access_type='offline',
-    include_granted_scopes='true'
 )
 app.register_blueprint(google_bp, url_prefix="/google_login")
 

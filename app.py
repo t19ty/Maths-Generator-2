@@ -6,6 +6,10 @@ import os
 import random
 import uuid
 from flask_dance.contrib.google import make_google_blueprint, google
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
@@ -19,12 +23,21 @@ BASE_URL = "https://api.deepseek.com"
 # Store the last question for each topic/difficulty
 last_questions = {}
 
-app.secret_key = SESSION_SECRET
+app.secret_key = SESSION_SECRET or "your-secret-key-change-this-in-production"
+
+# Configure OAuth environment variables (like Google example)
+if app.debug:
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
 google_bp = make_google_blueprint(
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
     scope=["profile", "email"],
+    redirect_url="/google_login/google/authorized",
+    # Add OAuth parameters like Google example
+    access_type='offline',
+    include_granted_scopes='true'
 )
 app.register_blueprint(google_bp, url_prefix="/google_login")
 
@@ -73,6 +86,30 @@ def logout():
     # Clear session
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/google_login/google/authorized')
+def google_authorized():
+    """Handle Google OAuth callback with proper error handling"""
+    if not google.authorized:
+        return redirect(url_for('login'))
+    
+    # Get user info
+    resp = google.get("/oauth2/v2/userinfo")
+    if not resp.ok:
+        return redirect(url_for('login'))
+    
+    user_info = resp.json()
+    email = user_info.get("email", "")
+    
+    # Check email whitelist
+    if not is_email_allowed(email):
+        return redirect(url_for('login', error="unauthorized"))
+    
+    # Store user info in session
+    session["user_email"] = email
+    session["user_info"] = user_info
+    
+    return redirect(url_for('home'))
 
 @app.route('/api/generate', methods=['POST'])
 def generate():

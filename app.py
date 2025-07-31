@@ -7,6 +7,7 @@ import random
 import uuid
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +17,7 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SESSION_SECRET = os.environ.get("SESSION_SECRET")
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 API_KEY = os.environ.get("API_KEY", "sk-2b91306525ae497ca872f7bc7df5421d")
 BASE_URL = "https://api.deepseek.com"
@@ -33,8 +35,8 @@ if app.debug:
 google_bp = make_google_blueprint(
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
-    scope=["profile", "email"],
-    redirect_url="/google_login/callback",
+    scope=["profile", "email"]
+    # Do not set redirect_url, use default
 )
 app.register_blueprint(google_bp, url_prefix="/google_login")
 
@@ -84,7 +86,7 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-@app.route('/google_login/google/authorized')
+@app.route('/google_login/callback')
 def google_authorized():
     """Handle Google OAuth callback with proper error handling"""
     if not google.authorized:

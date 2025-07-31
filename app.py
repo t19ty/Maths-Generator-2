@@ -25,7 +25,7 @@ google_bp = make_google_blueprint(
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
     scope=["profile", "email"],
-    redirect_url="/google_login/callback"
+    redirect_url="https://maths-generator-2.onrender.com/google_login/callback"
 )
 app.register_blueprint(google_bp, url_prefix="/google_login")
 
@@ -42,13 +42,13 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not google.authorized:
-            return redirect(url_for("google.login"))
+            return redirect(url_for("login"))
         resp = google.get("/oauth2/v2/userinfo")
         if not resp.ok:
-            return redirect(url_for("google.login"))
+            return redirect(url_for("login"))
         email = resp.json().get("email", "")
         if not is_email_allowed(email):
-            return "Unauthorized", 403
+            return redirect(url_for("login", error="unauthorized"))
         session["user_email"] = email
         return f(*args, **kwargs)
     return decorated_function
@@ -59,8 +59,21 @@ def protected():
     return f"Logged-in user: {session.get('user_email')}"
 
 @app.route('/')
+@login_required
 def home():
     return render_template('index.html')
+
+@app.route('/login')
+def login():
+    if google.authorized:
+        return redirect(url_for('home'))
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    # Clear session
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route('/api/generate', methods=['POST'])
 def generate():

@@ -1,3 +1,4 @@
 Flask
 openai
 flask-dance
+python-dotenv

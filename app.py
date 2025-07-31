@@ -25,7 +25,7 @@ google_bp = make_google_blueprint(
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
     scope=["profile", "email"],
-    redirect_url="https://maths-generator-2.onrender.com/google_login/callback"
+    redirect_url="/google_login/callback"
 )
 app.register_blueprint(google_bp, url_prefix="/google_login")
 

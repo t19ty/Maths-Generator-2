@@ -89,29 +89,8 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-@app.route('/google_login/callback')
-def google_authorized():
-    """Handle Google OAuth callback with proper error handling"""
-    if not google.authorized:
-        return redirect(url_for('login'))
-    
-    # Get user info
-    resp = google.get("/oauth2/v2/userinfo")
-    if not resp.ok:
-        return redirect(url_for('login'))
-    
-    user_info = resp.json()
-    email = user_info.get("email", "")
-    
-    # Check email whitelist
-    if not is_email_allowed(email):
-        return redirect(url_for('login', error="unauthorized"))
-    
-    # Store user info in session
-    session["user_email"] = email
-    session["user_info"] = user_info
-    
-    return redirect(url_for('home'))
+# Flask-Dance will handle the OAuth callback automatically at /google_login/google/authorized
+# We can add a post-login handler to check email and redirect appropriately
 
 @app.route('/api/generate', methods=['POST'])
 def generate():

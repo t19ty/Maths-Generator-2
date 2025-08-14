@@ -1,6 +1,10 @@
 # Allow HTTP for local development only (OAuth 2.0 security requirement)
 import os
-if os.environ.get('FLASK_ENV') != 'production':
+
+# Check if we're in production (Render) or development (local)
+IS_PRODUCTION = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RENDER') == 'true'
+
+if not IS_PRODUCTION:
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
@@ -20,10 +24,11 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SESSION_SECRET = os.environ.get("SESSION_SECRET")
 
-# Debug: Print credentials (remove in production)
-print(f"DEBUG: GOOGLE_CLIENT_ID: {GOOGLE_CLIENT_ID}")
-print(f"DEBUG: GOOGLE_CLIENT_SECRET: {GOOGLE_CLIENT_SECRET[:10]}..." if GOOGLE_CLIENT_SECRET else "DEBUG: GOOGLE_CLIENT_SECRET: None")
-print(f"DEBUG: SESSION_SECRET: {SESSION_SECRET[:10]}..." if SESSION_SECRET else "DEBUG: SESSION_SECRET: None")
+# Debug: Print credentials (only in development)
+if not IS_PRODUCTION:
+    print(f"DEBUG: GOOGLE_CLIENT_ID: {GOOGLE_CLIENT_ID}")
+    print(f"DEBUG: GOOGLE_CLIENT_SECRET: {GOOGLE_CLIENT_SECRET[:10]}..." if GOOGLE_CLIENT_SECRET else "DEBUG: GOOGLE_CLIENT_SECRET: None")
+    print(f"DEBUG: SESSION_SECRET: {SESSION_SECRET[:10]}..." if SESSION_SECRET else "DEBUG: SESSION_SECRET: None")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -52,13 +57,13 @@ google_bp = make_google_blueprint(
 )
 
 # Debug: Print the exact redirect URI being used
-if os.environ.get('FLASK_ENV') != 'production':
+if not IS_PRODUCTION:
     print(f"DEBUG: Google OAuth redirect URI: {google_bp.redirect_url}")
     print(f"DEBUG: Google OAuth redirect to: {google_bp.redirect_to}")
 app.register_blueprint(google_bp, url_prefix="/google_login")
 
 # Debug: Print the blueprint info (only in development)
-if os.environ.get('FLASK_ENV') != 'production':
+if not IS_PRODUCTION:
     print(f"DEBUG: Google blueprint registered with prefix: {google_bp.url_prefix}")
     print(f"DEBUG: Blueprint routes: {[str(rule) for rule in google_bp.deferred_functions]}")
     print(f"DEBUG: App routes: {[str(rule) for rule in app.url_map.iter_rules()]}")
@@ -77,14 +82,24 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if not google.authorized:
             return redirect(url_for("login"))
-        resp = google.get("/oauth2/v2/userinfo")
-        if not resp.ok:
+        
+        try:
+            resp = google.get("/oauth2/v2/userinfo")
+            if not resp.ok:
+                # Token might be expired, redirect to login
+                return redirect(url_for("login"))
+            
+            email = resp.json().get("email", "")
+            if not is_email_allowed(email):
+                return redirect(url_for("login", error="unauthorized"))
+            
+            session["user_email"] = email
+            return f(*args, **kwargs)
+        except Exception as e:
+            # Handle token expiration and other OAuth errors
+            if not IS_PRODUCTION:
+                print(f"DEBUG: OAuth error in login_required: {e}")
             return redirect(url_for("login"))
-        email = resp.json().get("email", "")
-        if not is_email_allowed(email):
-            return redirect(url_for("login", error="unauthorized"))
-        session["user_email"] = email
-        return f(*args, **kwargs)
     return decorated_function
 
 @app.route("/protected")
@@ -95,7 +110,7 @@ def protected():
 @app.route('/')
 @login_required
 def home():
-    if os.environ.get('FLASK_ENV') != 'production':
+    if not IS_PRODUCTION:
         print(f"DEBUG: User accessing home page, session: {session}")
     return render_template('index.html')
 

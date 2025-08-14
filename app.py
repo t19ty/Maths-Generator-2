@@ -1,8 +1,12 @@
+# Allow HTTP for local development only (OAuth 2.0 security requirement)
+import os
+if os.environ.get('FLASK_ENV') != 'production':
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from openai import OpenAI
 import json
 import re
-import os
 import random
 import uuid
 from flask_dance.contrib.google import make_google_blueprint, google
@@ -15,6 +19,11 @@ load_dotenv()
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SESSION_SECRET = os.environ.get("SESSION_SECRET")
+
+# Debug: Print credentials (remove in production)
+print(f"DEBUG: GOOGLE_CLIENT_ID: {GOOGLE_CLIENT_ID}")
+print(f"DEBUG: GOOGLE_CLIENT_SECRET: {GOOGLE_CLIENT_SECRET[:10]}..." if GOOGLE_CLIENT_SECRET else "DEBUG: GOOGLE_CLIENT_SECRET: None")
+print(f"DEBUG: SESSION_SECRET: {SESSION_SECRET[:10]}..." if SESSION_SECRET else "DEBUG: SESSION_SECRET: None")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -43,11 +52,16 @@ google_bp = make_google_blueprint(
 )
 app.register_blueprint(google_bp, url_prefix="/google_login")
 
+# Debug: Print the blueprint info (only in development)
+if os.environ.get('FLASK_ENV') != 'production':
+    print(f"DEBUG: Google blueprint registered with prefix: {google_bp.url_prefix}")
+    print(f"DEBUG: Blueprint routes: {[str(rule) for rule in google_bp.deferred_functions]}")
+
 # Email whitelist check function
 def is_email_allowed(email):
     return (
-        email == "t19ty@cdgfss.edu.hk" or
-        re.match(r"^cdg\d{6}@cdgfss\.edu\.hk$", email)
+        email == "t19ty@school.cdgfss.edu.hk" or
+        re.match(r"^cdg\d{6}@school\.cdgfss\.edu\.hk$", email)
     )
 
 # Route protection decorator
@@ -75,12 +89,31 @@ def protected():
 @app.route('/')
 @login_required
 def home():
+    if os.environ.get('FLASK_ENV') != 'production':
+        print(f"DEBUG: User accessing home page, session: {session}")
     return render_template('index.html')
 
 @app.route('/login')
 def login():
-    if google.authorized:
+    if os.environ.get('FLASK_ENV') != 'production':
+        print(f"DEBUG: User accessing login page, google.authorized: {google.authorized}")
+    
+    # Check if there's an error parameter
+    error = request.args.get('error')
+    
+    if google.authorized and not error:
+        if os.environ.get('FLASK_ENV') != 'production':
+            print("DEBUG: User is authorized and no error, redirecting to home")
         return redirect(url_for('home'))
+    
+    if os.environ.get('FLASK_ENV') != 'production':
+        print("DEBUG: User not authorized or has error, showing login page")
+    
+    # Debug: Show what the Google login URL will be
+    google_login_url = url_for('google.login', _external=True)
+    if os.environ.get('FLASK_ENV') != 'production':
+        print(f"DEBUG: Google login URL will be: {google_login_url}")
+    
     return render_template('login.html')
 
 @app.route('/logout')
@@ -89,8 +122,53 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+@app.route('/test')
+def test():
+    """Simple test route to check if the app is working"""
+    return "App is working! OAuth status: " + str(google.authorized)
+
 # Flask-Dance will handle the OAuth callback automatically at /google_login/google/authorized
-# We can add a post-login handler to check email and redirect appropriately
+# Add a post-login handler to check email and redirect appropriately
+@app.route('/google_login/google/authorized')
+def google_authorized():
+    """Handle post-OAuth login to check email and set session"""
+    if not google.authorized:
+        if os.environ.get('FLASK_ENV') != 'production':
+            print("DEBUG: OAuth not authorized in callback")
+        return redirect(url_for('login'))
+    
+    if os.environ.get('FLASK_ENV') != 'production':
+        print("DEBUG: OAuth authorized, getting user info")
+    
+    # Get user info
+    resp = google.get("/oauth2/v2/userinfo")
+    if not resp.ok:
+        if os.environ.get('FLASK_ENV') != 'production':
+            print(f"DEBUG: Failed to get user info: {resp.status_code}")
+        return redirect(url_for('login'))
+    
+    user_info = resp.json()
+    email = user_info.get("email", "")
+    if os.environ.get('FLASK_ENV') != 'production':
+        print(f"DEBUG: User email: {email}")
+    
+    # Check email whitelist
+    if not is_email_allowed(email):
+        if os.environ.get('FLASK_ENV') != 'production':
+            print(f"DEBUG: Email not allowed: {email}")
+        return redirect(url_for('login', error="unauthorized"))
+    
+    if os.environ.get('FLASK_ENV') != 'production':
+        print(f"DEBUG: Email allowed, setting session for: {email}")
+    
+    # Store user info in session
+    session["user_email"] = email
+    session["user_info"] = user_info
+    
+    if os.environ.get('FLASK_ENV') != 'production':
+        print(f"DEBUG: Session set, redirecting to home. Session: {session}")
+    
+    return redirect(url_for('home'))
 
 @app.route('/api/generate', methods=['POST'])
 def generate():
@@ -249,4 +327,4 @@ def generate():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 10000))) 
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 8000))) 

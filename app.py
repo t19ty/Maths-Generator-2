@@ -50,12 +50,18 @@ google_bp = make_google_blueprint(
         "https://www.googleapis.com/auth/userinfo.profile"
     ]
 )
+
+# Debug: Print the exact redirect URI being used
+if os.environ.get('FLASK_ENV') != 'production':
+    print(f"DEBUG: Google OAuth redirect URI: {google_bp.redirect_url}")
+    print(f"DEBUG: Google OAuth redirect to: {google_bp.redirect_to}")
 app.register_blueprint(google_bp, url_prefix="/google_login")
 
 # Debug: Print the blueprint info (only in development)
 if os.environ.get('FLASK_ENV') != 'production':
     print(f"DEBUG: Google blueprint registered with prefix: {google_bp.url_prefix}")
     print(f"DEBUG: Blueprint routes: {[str(rule) for rule in google_bp.deferred_functions]}")
+    print(f"DEBUG: App routes: {[str(rule) for rule in app.url_map.iter_rules()]}")
 
 # Email whitelist check function
 def is_email_allowed(email):

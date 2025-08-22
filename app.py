@@ -70,10 +70,7 @@ if not IS_PRODUCTION:
 
 # Email whitelist check function
 def is_email_allowed(email):
-    return (
-        email == "t19ty@school.cdgfss.edu.hk" or
-        re.match(r"^cdg\d{6}@school\.cdgfss\.edu\.hk$", email)
-    )
+    return email.endswith("@school.cdgfss.edu.hk")
 
 # Route protection decorator
 def login_required(f):

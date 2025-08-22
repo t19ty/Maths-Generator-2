@@ -2,3 +2,6 @@ Flask
 openai
 flask-dance
 python-dotenv
+Flask-SQLAlchemy
+Flask-Migrate
+

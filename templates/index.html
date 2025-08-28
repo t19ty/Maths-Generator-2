@@ -56,6 +56,7 @@
     </select>
 
     <button id="start">Start Exercise</button>
+    <button id="viewResults" onclick="window.location.href='/results'" style="margin-top: 1rem; background: var(--blue);">📊 View My Results</button>
   </div>
 
   <div id="exerciseBox" style="display:none">
@@ -98,8 +99,9 @@ let score = 0;
 let total = 5;
 let previousQuestions = [];
 let lastQuestion = null;
-let reviewData = [];
 let startTime = null;
+let questionStartTime = null;
+let reviewData = [];
 let endTime = null;
 let elapsedSeconds = 0;
 
@@ -175,6 +177,9 @@ async function loadQuestion() {
   qText.textContent = "Loading...";
   optionsBox.innerHTML = "";
   feedback.textContent = "";
+  
+  // Start timing for this question
+  questionStartTime = new Date();
 
   // Pass previous questions to backend to avoid repeats
   const res = await fetch("/api/generate", {
@@ -231,7 +236,7 @@ async function loadQuestion() {
   if (window.MathJax) MathJax.typesetPromise();
 }
 
-function handleAnswer(idx, btn) {
+async function handleAnswer(idx, btn) {
   // disable all buttons
   document.querySelectorAll(".optionBtn").forEach(b => b.disabled = true);
   const correct = idx === lastQuestion.correctIndex;
@@ -244,6 +249,10 @@ function handleAnswer(idx, btn) {
     feedback.textContent = "Correct!";
     score++;
   }
+  
+  // Calculate time taken for this question
+  const timeTaken = questionStartTime ? (new Date() - questionStartTime) / 1000 : 0;
+  
   // Store review data
   reviewData.push({
     question: lastQuestion.question,
@@ -251,6 +260,26 @@ function handleAnswer(idx, btn) {
     correctIndex: lastQuestion.correctIndex,
     selectedIndex: idx
   });
+  
+  // Submit performance data to database
+  try {
+    await fetch('/api/submit_answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: topic,
+        difficulty: difficulty,
+        question: lastQuestion.question,
+        userAnswer: lastQuestion.options[idx],
+        correctAnswer: lastQuestion.options[lastQuestion.correctIndex],
+        isCorrect: correct,
+        timeTaken: timeTaken
+      })
+    });
+  } catch (error) {
+    console.error('Failed to submit performance data:', error);
+  }
+  
   current++;
   nextBtn.style.display = "block";
   if (current >= total) nextBtn.textContent = "Show Score";
@@ -267,6 +296,14 @@ function showScore() {
   scoreBox.textContent = `Exercise complete! Your score: ${score} / ${total}`;
   reviewBtn.style.display = "block";
   restartBtn.style.display = "block";
+  
+  // Add view results button
+  const viewResultsBtn = document.createElement('button');
+  viewResultsBtn.textContent = '📊 View My Results';
+  viewResultsBtn.style.cssText = 'margin-top: 1rem; background: var(--blue); width: 100%; padding: 0.6rem 0.8rem; font-size: 1rem; border: 1px solid #ccc; border-radius: var(--radius); color: white; border: none; cursor: pointer;';
+  viewResultsBtn.onclick = () => window.location.href = '/results';
+  scoreBox.appendChild(viewResultsBtn);
+  
   endTime = new Date();
   elapsedSeconds = Math.round((endTime - startTime) / 1000);
 }

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Results - Maths Generator</title>
+    <style>
+        :root {
+            --brand: #2d67ff;
+            --bg: #fafafa;
+            --text: #222;
+            --green: #3bb54a;
+            --red: #e95353;
+            --radius: 8px;
+            --blue: #4a90e2;
+            --orange: #f39c12;
+        }
+        
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--brand);
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .topic-stats {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .topic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .topic-item:last-child {
+            border-bottom: none;
+        }
+        
+        .topic-name {
+            font-weight: 600;
+        }
+        
+        .topic-accuracy {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .accuracy-bar {
+            width: 100px;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .accuracy-fill {
+            height: 100%;
+            background: var(--green);
+            transition: width 0.3s ease;
+        }
+        
+        .recent-questions {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .question-item {
+            padding: 1rem;
+            border: 1px solid #eee;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+        }
+        
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .question-topic {
+            background: var(--blue);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        
+        .question-result {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .result-correct {
+            background: var(--green);
+            color: white;
+        }
+        
+        .result-incorrect {
+            background: var(--red);
+            color: white;
+        }
+        
+        .question-text {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .question-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .nav-buttons {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.8rem 1.5rem;
+            margin: 0 0.5rem;
+            background: var(--brand);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius);
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn-secondary {
+            background: #666;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        
+        .error {
+            background: var(--red);
+            color: white;
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .topic-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Your Performance Results</h1>
+            <p>Track your progress and see how you're improving</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>Loading your results...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <p>Error loading results. Please try again.</p>
+        </div>
+
+        <div id="results" style="display: none;">
+            <!-- Overall Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalQuestions">0</div>
+                    <div class="stat-label">Total Questions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="correctAnswers">0</div>
+                    <div class="stat-label">Correct Answers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="accuracy">0%</div>
+                    <div class="stat-label">Overall Accuracy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="avgTime">0s</div>
+                    <div class="stat-label">Avg. Time</div>
+                </div>
+            </div>
+
+            <!-- Topic Performance -->
+            <div class="topic-stats">
+                <h2>📈 Performance by Topic</h2>
+                <div id="topicStats">
+                    <!-- Topic stats will be populated here -->
+                </div>
+            </div>
+
+            <!-- Recent Questions -->
+            <div class="recent-questions">
+                <h2>🕒 Recent Questions</h2>
+                <div id="recentQuestions">
+                    <!-- Recent questions will be populated here -->
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="nav-buttons">
+                <a href="/" class="btn">🏠 Back to Practice</a>
+                <button onclick="refreshResults()" class="btn btn-secondary">🔄 Refresh Results</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get user ID from session or URL parameter
+        function getUserId() {
+            // This should be set when the user logs in
+            // For now, we'll try to get it from the session or use a default
+            return localStorage.getItem('user_id') || 'current_user';
+        }
+
+        // Load user performance data
+        async function loadResults() {
+            const userId = getUserId();
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const results = document.getElementById('results');
+
+            try {
+                const response = await fetch(`/api/performance/${userId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        // User not authorized, redirect to login
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                displayResults(data);
+                
+                loading.style.display = 'none';
+                results.style.display = 'block';
+                
+            } catch (err) {
+                console.error('Error loading results:', err);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.querySelector('p').textContent = `Error: ${err.message}`;
+            }
+        }
+
+        // Display the results data
+        function displayResults(data) {
+            // Overall statistics
+            document.getElementById('totalQuestions').textContent = data.total_questions;
+            document.getElementById('correctAnswers').textContent = data.correct_answers;
+            document.getElementById('accuracy').textContent = `${data.accuracy}%`;
+            
+            // Calculate average time
+            const avgTime = data.recent_performances.length > 0 
+                ? Math.round(data.recent_performances.reduce((sum, p) => sum + (p.time_taken || 0), 0) / data.recent_performances.length)
+                : 0;
+            document.getElementById('avgTime').textContent = `${avgTime}s`;
+
+            // Topic statistics
+            const topicStats = document.getElementById('topicStats');
+            topicStats.innerHTML = '';
+            
+            Object.entries(data.topic_stats).forEach(([topic, stats]) => {
+                const topicItem = document.createElement('div');
+                topicItem.className = 'topic-item';
+                
+                const accuracyPercent = Math.round(stats.accuracy);
+                const accuracyFill = Math.max(0, Math.min(100, accuracyPercent));
+                
+                topicItem.innerHTML = `
+                    <div class="topic-name">${topic}</div>
+                    <div class="topic-accuracy">
+                        <div class="accuracy-bar">
+                            <div class="accuracy-fill" style="width: ${accuracyFill}%"></div>
+                        </div>
+                        <span>${accuracyPercent}% (${stats.correct}/${stats.total})</span>
+                    </div>
+                `;
+                
+                topicStats.appendChild(topicItem);
+            });
+
+            // Recent questions
+            const recentQuestions = document.getElementById('recentQuestions');
+            recentQuestions.innerHTML = '';
+            
+            data.recent_performances.forEach(performance => {
+                const questionItem = document.createElement('div');
+                questionItem.className = 'question-item';
+                
+                const resultClass = performance.is_correct ? 'result-correct' : 'result-incorrect';
+                const resultText = performance.is_correct ? 'Correct' : 'Incorrect';
+                
+                questionItem.innerHTML = `
+                    <div class="question-header">
+                        <span class="question-topic">${performance.topic}</span>
+                        <span class="question-result ${resultClass}">${resultText}</span>
+                    </div>
+                    <div class="question-text">${performance.question_text || 'Question text not available'}</div>
+                    <div class="question-details">
+                        Difficulty: ${performance.difficulty} | 
+                        Time: ${performance.time_taken ? Math.round(performance.time_taken) + 's' : 'N/A'} | 
+                        Date: ${new Date(performance.created_at).toLocaleDateString()}
+                    </div>
+                `;
+                
+                recentQuestions.appendChild(questionItem);
+            });
+        }
+
+        // Refresh results
+        function refreshResults() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            loadResults();
+        }
+
+        // Load results when page loads
+        document.addEventListener('DOMContentLoaded', loadResults);
+    </script>
+</body>
+</html>

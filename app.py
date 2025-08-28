@@ -202,6 +202,17 @@ def test():
     """Simple test route to check if the app is working"""
     return "App is working! OAuth status: " + str(google.authorized)
 
+@app.route('/results')
+def results():
+    """Results page for users to view their performance"""
+    print("DEBUG: Results route accessed")
+    return render_template('results.html')
+
+@app.route('/simple-results')
+def simple_results():
+    """Simple test results route"""
+    return "Simple results route working!"
+
 # Flask-Dance will handle the OAuth callback automatically at /google_login/google/authorized
 # Add a post-login handler to check email and redirect appropriately
 @app.route('/google_login/google/authorized')

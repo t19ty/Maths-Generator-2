@@ -36,11 +36,15 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///maths_generator.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), "maths_generator.db")}')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database
 db.init_app(app)
+
+# Create database tables if they don't exist
+with app.app_context():
+    db.create_all()
 
 API_KEY = os.environ.get("API_KEY", "sk-2b91306525ae497ca872f7bc7df5421d")
 BASE_URL = "https://api.deepseek.com"
